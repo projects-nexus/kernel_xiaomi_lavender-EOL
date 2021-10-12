@@ -1781,9 +1781,10 @@ static ssize_t cpuset_write_resmask_wrapper(struct kernfs_open_file *of,
 	static struct cs_target cs_targets[] = {
 		/* Little-only cpusets go first */
 		{ "background",		"0-1" },
-		{ "camera-daemon",	"0-3" },
-		{ "system-background",	"0-3" },
-		{ "restricted",		"0-5" },
+		{ "camera-daemon",	"0-7" },
+		{ "audio-app",   	"0-3" },
+		{ "system-background",	"0-2" },
+		{ "restricted",		"0-1" },
 		{ "top-app",		"0-7" },
 		{ "foreground",		"0-3,6-7" },
 	};
