@@ -1,0 +1,56 @@
+--- 
+clone: 
+  depth: 1
+kind: pipeline
+name : OldCam
+version: XTREME-OLD
+steps:
+ - name: Xtreme
+   image: panchajanya1999/archlinux:latest
+   environment:
+     token:
+       from_secret: token
+     chat_id:
+       from_secret: chat_id
+   commands:
+     - pacman -Sy && pacman -S dpkg --noconfirm
+     - wget http://archive.ubuntu.com/ubuntu/pool/main/n/ncurses/libtinfo6_6.2+20201114-2build1_amd64.deb -O libtinfo6.deb && dpkg-deb -R libtinfo6.deb libtinfo && cp libtinfo/lib/x86_64-linux-gnu/libtinfo.so.6.2 /usr/lib/libtinfo.so.6
+     - bash build --old
+
+---
+clone:
+  depth: 1
+kind: pipeline
+name : NewCam
+version: XTREME-NEW
+steps:
+ - name: Xtreme
+   image: panchajanya1999/archlinux:latest
+   environment:
+     token:
+       from_secret: token
+     chat_id:
+       from_secret: chat_id
+   commands:
+     - pacman -Sy && pacman -S dpkg --noconfirm
+     - wget http://archive.ubuntu.com/ubuntu/pool/main/n/ncurses/libtinfo6_6.2+20201114-2build1_amd64.deb -O libtinfo6.deb && dpkg-deb -R libtinfo6.deb libtinfo && cp libtinfo/lib/x86_64-linux-gnu/libtinfo.so.6.2 /usr/lib/libtinfo.so.6
+     - bash build --new
+
+---
+kind: pipeline
+name : Qti-Old
+version: XTREME-QTI-OLD
+steps:
+ - name: Xtreme
+   image: panchajanya1999/archlinux:latest
+   environment:
+     token:
+       from_secret: token
+     chat_id:
+       from_secret: chat_id
+   commands:
+     - pacman -Sy && pacman -S dpkg --noconfirm
+     - wget http://archive.ubuntu.com/ubuntu/pool/main/n/ncurses/libtinfo6_6.2+20201114-2build1_amd64.deb -O libtinfo6.deb && dpkg-deb -R libtinfo6.deb libtinfo && cp libtinfo/lib/x86_64-linux-gnu/libtinfo.so.6.2 /usr/lib/libtinfo.so.6
+     - git fetch https://github.com/ImSpiDy/Nexus-Xtreme-Kernel Qti
+     - git cherry-pick f6bcac58941a4ecb1646819464298f8aa4d91571^..4c27e5c6303ebc2bda849dd97223f734762c20f6
+     - bash build --qti
