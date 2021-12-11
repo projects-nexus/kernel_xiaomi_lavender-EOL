@@ -11,7 +11,7 @@ KERNEL_DIR="$(pwd)"
 ZIPNAME="Xtreme-EAS-X1"
 
 # Specify compiler ( eva , azure , proton , arter , aosp & nexus )
-COMPILER=proton
+COMPILER=azure
 
 # Device Name and Model
 MODEL=Redmi Note 7
