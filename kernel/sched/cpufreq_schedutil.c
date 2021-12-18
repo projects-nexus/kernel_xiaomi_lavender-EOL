@@ -743,14 +743,14 @@ static int sugov_init(struct cpufreq_policy *policy)
 	} else {
 		unsigned int lat;
 
-                tunables->up_rate_limit_us = LATENCY_MULTIPLIER;
+                tunables->up_rate_limit_us = LATENCY_MULTIPLIER / 2;
 
 	if (cpumask_test_cpu(policy->cpu, cpu_perf_mask)) {
-                tunables->down_rate_limit_us = LATENCY_MULTIPLIER;
+                tunables->down_rate_limit_us = LATENCY_MULTIPLIER * 2;
         }
 
 	if (cpumask_test_cpu(policy->cpu, cpu_lp_mask)) {
-		tunables->down_rate_limit_us = LATENCY_MULTIPLIER;
+		tunables->down_rate_limit_us = LATENCY_MULTIPLIER * 20;
         }
 		lat = policy->cpuinfo.transition_latency / NSEC_PER_USEC;
 		if (lat) {
