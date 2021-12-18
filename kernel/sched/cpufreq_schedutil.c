@@ -744,7 +744,14 @@ static int sugov_init(struct cpufreq_policy *policy)
 		unsigned int lat;
 
                 tunables->up_rate_limit_us = LATENCY_MULTIPLIER;
+
+	if (cpumask_test_cpu(policy->cpu, cpu_perf_mask)) {
                 tunables->down_rate_limit_us = LATENCY_MULTIPLIER;
+        }
+
+	if (cpumask_test_cpu(policy->cpu, cpu_lp_mask)) {
+		tunables->down_rate_limit_us = LATENCY_MULTIPLIER;
+        }
 		lat = policy->cpuinfo.transition_latency / NSEC_PER_USEC;
 		if (lat) {
                         tunables->up_rate_limit_us *= lat;
