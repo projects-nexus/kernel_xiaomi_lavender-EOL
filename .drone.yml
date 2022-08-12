@@ -1,0 +1,18 @@
+---
+clone:
+  depth: 1
+kind: pipeline
+name : Blu-old
+version: Old
+steps:
+ - name: Lets Go
+   image: jebaitedneko/kernel:latest
+   environment:
+     token:
+       from_secret: token
+     chat_id:
+       from_secret: chat_id
+     ghtoken:
+       from_secret: ghtoken
+   commands:
+     - bash build.sh
