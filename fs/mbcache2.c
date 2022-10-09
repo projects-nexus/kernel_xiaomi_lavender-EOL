@@ -30,9 +30,9 @@ struct mb2_cache {
 	int			c_bucket_bits;
 	/* Maximum entries in cache to avoid degrading hash too much */
 	int			c_max_entries;
-	/* Protects c_list, c_entry_count */
-	spinlock_t		c_list_lock;
-	struct list_head	c_list;
+	/* Protects c_lru_list, c_entry_count */
+	spinlock_t		c_lru_list_lock;
+	struct list_head	c_lru_list;
 	/* Number of entries in cache */
 	unsigned long		c_entry_count;
 	struct shrinker		c_shrink;
@@ -44,29 +44,6 @@ static struct kmem_cache *mb2_entry_cache;
 
 static unsigned long mb2_cache_shrink(struct mb2_cache *cache,
 				      unsigned int nr_to_scan);
-
-static inline bool mb2_cache_entry_referenced(struct mb2_cache_entry *entry)
-{
-	return entry->_e_hash_list_head & 1;
-}
-
-static inline void mb2_cache_entry_set_referenced(struct mb2_cache_entry *entry)
-{
-	entry->_e_hash_list_head |= 1;
-}
-
-static inline void mb2_cache_entry_clear_referenced(
-					struct mb2_cache_entry *entry)
-{
-	entry->_e_hash_list_head &= ~1;
-}
-
-static inline struct hlist_bl_head *mb2_cache_entry_head(
-					struct mb2_cache_entry *entry)
-{
-	return (struct hlist_bl_head *)
-			(entry->_e_hash_list_head & ~1);
-}
 
 /*
  * Number of entries to reclaim synchronously when there are too many entries
@@ -103,13 +80,13 @@ int mb2_cache_entry_create(struct mb2_cache *cache, gfp_t mask, u32 key,
 	if (!entry)
 		return -ENOMEM;
 
-	INIT_LIST_HEAD(&entry->e_list);
+	INIT_LIST_HEAD(&entry->e_lru_list);
 	/* One ref for hash, one ref returned */
 	atomic_set(&entry->e_refcnt, 1);
 	entry->e_key = key;
 	entry->e_block = block;
 	head = &cache->c_hash[hash_32(key, cache->c_bucket_bits)];
-	entry->_e_hash_list_head = (unsigned long)head;
+	entry->e_hash_list_head = head;
 	hlist_bl_lock(head);
 	hlist_bl_for_each_entry(dup, dup_node, head, e_hash_list) {
 		if (dup->e_key == key && dup->e_block == block) {
@@ -121,12 +98,12 @@ int mb2_cache_entry_create(struct mb2_cache *cache, gfp_t mask, u32 key,
 	hlist_bl_add_head(&entry->e_hash_list, head);
 	hlist_bl_unlock(head);
 
-	spin_lock(&cache->c_list_lock);
-	list_add_tail(&entry->e_list, &cache->c_list);
+	spin_lock(&cache->c_lru_list_lock);
+	list_add_tail(&entry->e_lru_list, &cache->c_lru_list);
 	/* Grab ref for LRU list */
 	atomic_inc(&entry->e_refcnt);
 	cache->c_entry_count++;
-	spin_unlock(&cache->c_list_lock);
+	spin_unlock(&cache->c_lru_list_lock);
 
 	return 0;
 }
@@ -147,7 +124,7 @@ static struct mb2_cache_entry *__entry_find(struct mb2_cache *cache,
 	struct hlist_bl_head *head;
 
 	if (entry)
-		head = mb2_cache_entry_head(entry);
+		head = entry->e_hash_list_head;
 	else
 		head = &cache->c_hash[hash_32(key, cache->c_bucket_bits)];
 	hlist_bl_lock(head);
@@ -226,13 +203,13 @@ void mb2_cache_entry_delete_block(struct mb2_cache *cache, u32 key,
 			/* We keep hash list reference to keep entry alive */
 			hlist_bl_del_init(&entry->e_hash_list);
 			hlist_bl_unlock(head);
-			spin_lock(&cache->c_list_lock);
-			if (!list_empty(&entry->e_list)) {
-				list_del_init(&entry->e_list);
+			spin_lock(&cache->c_lru_list_lock);
+			if (!list_empty(&entry->e_lru_list)) {
+				list_del_init(&entry->e_lru_list);
 				cache->c_entry_count--;
 				atomic_dec(&entry->e_refcnt);
 			}
-			spin_unlock(&cache->c_list_lock);
+			spin_unlock(&cache->c_lru_list_lock);
 			mb2_cache_entry_put(cache, entry);
 			return;
 		}
@@ -245,12 +222,15 @@ EXPORT_SYMBOL(mb2_cache_entry_delete_block);
  * @cache - cache the entry belongs to
  * @entry - entry that got used
  *
- * Marks entry as used to give hit higher chances of surviving in cache.
+ * Move entry in lru list to reflect the fact that it was used.
  */
 void mb2_cache_entry_touch(struct mb2_cache *cache,
 			   struct mb2_cache_entry *entry)
 {
-	mb2_cache_entry_set_referenced(entry);
+	spin_lock(&cache->c_lru_list_lock);
+	if (!list_empty(&entry->e_lru_list))
+		list_move_tail(&cache->c_lru_list, &entry->e_lru_list);
+	spin_unlock(&cache->c_lru_list_lock);
 }
 EXPORT_SYMBOL(mb2_cache_entry_touch);
 
@@ -271,23 +251,18 @@ static unsigned long mb2_cache_shrink(struct mb2_cache *cache,
 	struct hlist_bl_head *head;
 	unsigned int shrunk = 0;
 
-	spin_lock(&cache->c_list_lock);
-	while (nr_to_scan-- && !list_empty(&cache->c_list)) {
-		entry = list_first_entry(&cache->c_list,
-					 struct mb2_cache_entry, e_list);
-		if (mb2_cache_entry_referenced(entry)) {
-			mb2_cache_entry_clear_referenced(entry);
-			list_move_tail(&cache->c_list, &entry->e_list);
-			continue;
-		}
-		list_del_init(&entry->e_list);
+	spin_lock(&cache->c_lru_list_lock);
+	while (nr_to_scan-- && !list_empty(&cache->c_lru_list)) {
+		entry = list_first_entry(&cache->c_lru_list,
+					 struct mb2_cache_entry, e_lru_list);
+		list_del_init(&entry->e_lru_list);
 		cache->c_entry_count--;
 		/*
 		 * We keep LRU list reference so that entry doesn't go away
 		 * from under us.
 		 */
-		spin_unlock(&cache->c_list_lock);
-		head = mb2_cache_entry_head(entry);
+		spin_unlock(&cache->c_lru_list_lock);
+		head = entry->e_hash_list_head;
 		hlist_bl_lock(head);
 		if (!hlist_bl_unhashed(&entry->e_hash_list)) {
 			hlist_bl_del_init(&entry->e_hash_list);
@@ -297,9 +272,9 @@ static unsigned long mb2_cache_shrink(struct mb2_cache *cache,
 		if (mb2_cache_entry_put(cache, entry))
 			shrunk++;
 		cond_resched();
-		spin_lock(&cache->c_list_lock);
+		spin_lock(&cache->c_lru_list_lock);
 	}
-	spin_unlock(&cache->c_list_lock);
+	spin_unlock(&cache->c_lru_list_lock);
 
 	return shrunk;
 }
@@ -343,8 +318,8 @@ struct mb2_cache *mb2_cache_create(int bucket_bits)
 		goto err_out;
 	cache->c_bucket_bits = bucket_bits;
 	cache->c_max_entries = bucket_count << 4;
-	INIT_LIST_HEAD(&cache->c_list);
-	spin_lock_init(&cache->c_list_lock);
+	INIT_LIST_HEAD(&cache->c_lru_list);
+	spin_lock_init(&cache->c_lru_list_lock);
 	cache->c_hash = kmalloc(bucket_count * sizeof(struct hlist_bl_head),
 				GFP_KERNEL);
 	if (!cache->c_hash) {
@@ -386,13 +361,13 @@ void mb2_cache_destroy(struct mb2_cache *cache)
 	 * We don't bother with any locking. Cache must not be used at this
 	 * point.
 	 */
-	list_for_each_entry_safe(entry, next, &cache->c_list, e_list) {
+	list_for_each_entry_safe(entry, next, &cache->c_lru_list, e_lru_list) {
 		if (!hlist_bl_unhashed(&entry->e_hash_list)) {
 			hlist_bl_del_init(&entry->e_hash_list);
 			atomic_dec(&entry->e_refcnt);
 		} else
 			WARN_ON(1);
-		list_del(&entry->e_list);
+		list_del(&entry->e_lru_list);
 		WARN_ON(atomic_read(&entry->e_refcnt) != 1);
 		mb2_cache_entry_put(cache, entry);
 	}
