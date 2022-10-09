@@ -420,8 +420,7 @@ static int __init mbcache_init(void)
 	mb_entry_cache = kmem_cache_create("mbcache",
 				sizeof(struct mb_cache_entry), 0,
 				SLAB_RECLAIM_ACCOUNT|SLAB_MEM_SPREAD, NULL);
-	if (!mb_entry_cache)
-		return -ENOMEM;
+	BUG_ON(!mb_entry_cache);
 	return 0;
 }
 
