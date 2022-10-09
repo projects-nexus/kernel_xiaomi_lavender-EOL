@@ -366,11 +366,7 @@ struct mb_cache *mb_cache_create(int bucket_bits)
 	cache->c_shrink.count_objects = mb_cache_count;
 	cache->c_shrink.scan_objects = mb_cache_scan;
 	cache->c_shrink.seeks = DEFAULT_SEEKS;
-	if (register_shrinker(&cache->c_shrink)) {
-		kfree(cache->c_hash);
-		kfree(cache);
-		goto err_out;
-	}
+	register_shrinker(&cache->c_shrink);
 
 	INIT_WORK(&cache->c_shrink_work, mb_cache_shrink_worker);
 
