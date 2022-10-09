@@ -344,6 +344,9 @@ struct mb_cache *mb_cache_create(int bucket_bits)
 	int bucket_count = 1 << bucket_bits;
 	int i;
 
+	if (!try_module_get(THIS_MODULE))
+		return NULL;
+
 	cache = kzalloc(sizeof(struct mb_cache), GFP_KERNEL);
 	if (!cache)
 		goto err_out;
@@ -374,6 +377,7 @@ struct mb_cache *mb_cache_create(int bucket_bits)
 	return cache;
 
 err_out:
+	module_put(THIS_MODULE);
 	return NULL;
 }
 EXPORT_SYMBOL(mb_cache_create);
@@ -407,6 +411,7 @@ void mb_cache_destroy(struct mb_cache *cache)
 	}
 	kfree(cache->c_hash);
 	kfree(cache);
+	module_put(THIS_MODULE);
 }
 EXPORT_SYMBOL(mb_cache_destroy);
 
