@@ -35,7 +35,7 @@ DATE=$(TZ=Asia/Kolkata date +"%Y%m%d-%T")
 TANGGAL=$(date +"%F%S")
 
 # Compiler and Build Information
-TOOLCHAIN=aosp # List (clang = atomx | aosp | sdclang | proton )
+TOOLCHAIN=atomx # List (clang = atomx | aosp | sdclang | proton )
 LINKER=ld # List ( ld.lld | ld.bfd | ld.gold | ld )
 VERBOSE=0
 
@@ -45,7 +45,7 @@ VERBOSE=0
 #ZIPNAME=Nexus-Lite
 #fi
 
-FINAL_ZIP=Nexus-Xtreme-EAS-Topaz-${DRONE_BUILD_NUMBER}.zip
+FINAL_ZIP=DarkNex-EAS-Topaz-${TANGGAL}.zip
 
 # CI
         if [ "$CI" ]; then
