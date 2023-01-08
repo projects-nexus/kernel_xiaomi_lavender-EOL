@@ -10,7 +10,7 @@ set -e
 ##----------------------------------------------------------##
 # Basic Information
 KERNEL_DIR="$(pwd)"
-VERSION=X1
+VERSION=X1-QTI-A13
 MODEL=Xiaomi
 DEVICE=lavender
 DEFCONFIG=${DEVICE}-perf_defconfig
@@ -45,7 +45,7 @@ VERBOSE=0
 #ZIPNAME=Nexus-Lite
 #fi
 
-FINAL_ZIP=DarkNex-EAS-Topaz-${TANGGAL}.zip
+FINAL_ZIP=NexusKernel-Lite-EAS-${VERSION}-${TANGGAL}.zip
 
 # CI
         if [ "$CI" ]; then
